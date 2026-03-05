@@ -1,32 +1,20 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# A default .gitignore for Create Go App project.
+# Author: Vic Shóstak <koddr.me@gmail.com> (https://github.com/koddr)
+# For more information, please visit https://github.com/create-go-app/cli
 
-# Test binary, built with `go test -c`
-*.test
+# macOS
+**/.DS_store
 
-# Code coverage profiles and other test artifacts
+# Go builds
+**/app/
+**/build/
+
+# Temporary files
+tmp/
+
+# Node.js dependencies
+**/node_modules/
+
+# Files
+hosts.ini
 *.out
-coverage.*
-*.coverprofile
-profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
-go.work.sum
-
-# env file
-.env
-
-# Editor/IDE
-# .idea/
-# .vscode/
