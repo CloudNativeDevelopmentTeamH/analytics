@@ -15,10 +15,10 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
-	"github.com/create-go-app/fiber-go-template/app/analytics"
-	grpcapi "github.com/create-go-app/fiber-go-template/app/grpc"
-	"github.com/create-go-app/fiber-go-template/pkg/health"
-	analyticsv1 "github.com/create-go-app/fiber-go-template/proto/analytics/v1"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/app/analytics"
+	grpcapi "github.com/CloudNativeDevelopmentTeamH/analytics/app/grpc"
+	analyticsv1 "github.com/CloudNativeDevelopmentTeamH/analytics/backend/proto/analytics/v1"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/pkg/health"
 )
 
 func main() {
