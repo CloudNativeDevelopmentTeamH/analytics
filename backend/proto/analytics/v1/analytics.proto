@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package analytics.v1;
+
+option go_package = "github.com/CloudNativeDevelopmentTeamH/analytics/backend/proto/analytics/v1;analyticsv1";
+service AnalyticsService {
+  // general statistics:
+  // - average length overall
+  // - average length last 10
+  // - category shares (time-based)
+  rpc GetGeneralStats(GetGeneralStatsRequest) returns (GetGeneralStatsResponse);
+
+  // average session length for a single category (category_id is required)
+  rpc GetAverageLengthByCategory(GetAverageLengthByCategoryRequest) returns (GetAverageLengthByCategoryResponse);
+}
+
+message GetGeneralStatsRequest {
+  string user_id = 1;
+}
+
+message CategoryShare {
+  // category_id can be "uncategorized"
+  string category_id = 1;
+
+  // 0..1 share, time-based: total_seconds(category) / total_seconds(overall)
+  double share = 2;
+
+  int64 total_seconds = 3;
+}
+
+message GetGeneralStatsResponse {
+  double average_length_overall_seconds = 1;
+  double average_length_last10_seconds = 2;
+  repeated CategoryShare category_shares = 3;
+}
+
+message GetAverageLengthByCategoryRequest {
+  string user_id = 1;
+
+  // required; can be "uncategorized"
+  string category_id = 2;
+}
+
+message GetAverageLengthByCategoryResponse {
+  string category_id = 1;
+  double average_length_seconds = 2;
+  int64 count = 3;
+  int64 sum_seconds = 4;
+}

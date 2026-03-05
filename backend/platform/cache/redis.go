@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/CloudNativeDevelopmentTeamH/analytics/pkg/utils"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/pkg/utils"
 
 	"github.com/redis/go-redis/v9"
 )

@@ -3,7 +3,7 @@ package utils
 import (
 	"fmt"
 
-	"github.com/CloudNativeDevelopmentTeamH/analytics/pkg/repository"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/pkg/repository"
 )
 
 // GetCredentialsByRole func for getting credentials from a role name.

@@ -3,7 +3,7 @@ package utils
 import (
 	"fmt"
 
-	"github.com/CloudNativeDevelopmentTeamH/analytics/pkg/repository"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/pkg/repository"
 )
 
 // VerifyRole func for verifying a given role.

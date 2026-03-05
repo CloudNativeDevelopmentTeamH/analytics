@@ -15,10 +15,10 @@ import (
 
 	_ "github.com/joho/godotenv/autoload"
 
-	"github.com/CloudNativeDevelopmentTeamH/analytics/app/analytics"
-	grpcapi "github.com/CloudNativeDevelopmentTeamH/analytics/app/grpc"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/app/analytics"
+	grpcapi "github.com/CloudNativeDevelopmentTeamH/analytics/backend/app/grpc"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/pkg/health"
 	analyticsv1 "github.com/CloudNativeDevelopmentTeamH/analytics/backend/proto/analytics/v1"
-	"github.com/CloudNativeDevelopmentTeamH/analytics/pkg/health"
 )
 
 func main() {
