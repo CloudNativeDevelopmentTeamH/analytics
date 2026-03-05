@@ -1,0 +1,9 @@
+server:
+  http_port: 8080
+  grpc_port: 9090
+
+kafka:
+  brokers:
+    - localhost:9092
+  topic: focus.events
+  group_id: analytics-service

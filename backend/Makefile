@@ -1,12 +1,27 @@
-.PHONY: clean critic security lint test build run
+.PHONY: clean critic security lint test build run \
+        proto proto.tools proto.gen \
+        docker.build docker.up docker.down docker.logs docker.ps \
+        kafka.topic.create kafka.produce.sample
 
-APP_NAME = apiserver
-BUILD_DIR = $(PWD)/build
-MIGRATIONS_FOLDER = $(PWD)/platform/migrations
-DATABASE_URL = postgres://postgres:password@cgapp-postgres/postgres?sslmode=disable
+APP_NAME        := analytics-server
+BUILD_DIR       := $(PWD)/build
+
+# --- Proto ---
+PROTO_DIR       := proto
+PROTO_FILES     := $(shell find $(PROTO_DIR) -name "*.proto")
+PROTOC          := protoc
+
+# --- Docker/Compose (compose file is in repo root) ---
+# If your docker-compose.yml is in repo root:
+COMPOSE_FILE    := ../docker-compose.yml
+COMPOSE         := docker compose -f $(COMPOSE_FILE)
+
+# --- Kafka (Redpanda) ---
+KAFKA_TOPIC     := focus.events
 
 clean:
 	rm -rf ./build
+	find . -name "cover.out" -delete
 
 critic:
 	gocritic check -enableAll ./...
@@ -24,62 +39,54 @@ test: clean critic security lint
 build: test
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o $(BUILD_DIR)/$(APP_NAME) main.go
 
-run: swag build
+run: build
 	$(BUILD_DIR)/$(APP_NAME)
 
-migrate.up:
-	migrate -path $(MIGRATIONS_FOLDER) -database "$(DATABASE_URL)" up
+# -----------------------
+# Protobuf generation
+# -----------------------
 
-migrate.down:
-	migrate -path $(MIGRATIONS_FOLDER) -database "$(DATABASE_URL)" down
+proto.tools:
+	@echo "Installing protoc Go plugins..."
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-migrate.force:
-	migrate -path $(MIGRATIONS_FOLDER) -database "$(DATABASE_URL)" force $(version)
+proto.gen:
+	@echo "Generating Go code from proto..."
+	$(PROTOC) -I $(PROTO_DIR) \
+	  --go_out=. --go_opt=module=github.com/CloudNativeDevelopmentTeamH/analytics/backend \
+	  --go-grpc_out=. --go-grpc_opt=module=github.com/CloudNativeDevelopmentTeamH/analytics/backend \
+	  $(PROTO_FILES)
 
-docker.run: docker.network docker.postgres swag docker.fiber docker.redis migrate.up
+proto: proto.tools proto.gen
 
-docker.network:
-	docker network inspect dev-network >/dev/null 2>&1 || \
-	docker network create -d bridge dev-network
+# -----------------------
+# Docker / Compose
+# -----------------------
 
-docker.fiber.build:
-	docker build -t fiber .
+docker.build:
+	$(COMPOSE) build
 
-docker.fiber: docker.fiber.build
-	docker run --rm -d \
-		--name cgapp-fiber \
-		--network dev-network \
-		-p 5000:5000 \
-		fiber
+docker.up:
+	$(COMPOSE) up -d
 
-docker.postgres:
-	docker run --rm -d \
-		--name cgapp-postgres \
-		--network dev-network \
-		-e POSTGRES_USER=postgres \
-		-e POSTGRES_PASSWORD=password \
-		-e POSTGRES_DB=postgres \
-		-v ${HOME}/dev-postgres/data/:/var/lib/postgresql/data \
-		-p 5432:5432 \
-		postgres
+docker.down:
+	$(COMPOSE) down -v
 
-docker.redis:
-	docker run --rm -d \
-		--name cgapp-redis \
-		--network dev-network \
-		-p 6379:6379 \
-		redis
+docker.logs:
+	$(COMPOSE) logs -f
 
-docker.stop: docker.stop.fiber docker.stop.postgres docker.stop.redis
+docker.ps:
+	$(COMPOSE) ps
 
-docker.stop.fiber:
-	docker stop cgapp-fiber
+# -----------------------
+# Kafka helpers (Redpanda rpk)
+# -----------------------
 
-docker.stop.postgres:
-	docker stop cgapp-postgres
+kafka.topic.create:
+	$(COMPOSE) exec redpanda rpk topic create $(KAFKA_TOPIC) || true
 
-docker.stop.redis:
-	docker stop cgapp-redis
-
-swag:
-	swag init
+kafka.produce.sample:
+	$(COMPOSE) exec -T redpanda rpk topic produce $(KAFKA_TOPIC) -k test <<'EOF'
+{"type":"FocusSessionEnded","sessionEnded":{"sessionId":"s1","userId":"u1","categoryId":"c1","durationSeconds":1500,"endedAt":"2026-03-05T12:00:00Z"}}
+EOF

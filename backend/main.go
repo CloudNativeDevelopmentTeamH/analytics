@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -17,22 +18,36 @@ import (
 
 	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/app/analytics"
 	grpcapi "github.com/CloudNativeDevelopmentTeamH/analytics/backend/app/grpc"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/config"
+	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/consumers"
 	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/pkg/health"
 	analyticsv1 "github.com/CloudNativeDevelopmentTeamH/analytics/backend/proto/analytics/v1"
 )
 
 func main() {
-	httpAddr := envOr("HTTP_ADDR", ":8080") // health/ready
-	grpcAddr := envOr("GRPC_ADDR", ":9090") // analytics read api
+	// Load application.yml + ENV overrides (koanf)
+	cfg := config.Load()
 
-	// readiness: TODO: couple to kafka
+	httpAddr := ":" + strconv.Itoa(cfg.Server.HTTPPort) // health/ready
+	grpcAddr := ":" + strconv.Itoa(cfg.Server.GRPCPort) // analytics read api
+
+	// readiness = grpcReady && kafkaReady
 	var ready atomic.Bool
-	ready.Store(false)
+	var grpcReady atomic.Bool
+	var kafkaReady atomic.Bool
+
+	updateReady := func() {
+		ready.Store(grpcReady.Load() && kafkaReady.Load())
+	}
 
 	// Aggregator
 	store := analytics.NewStore()
 
-	// gRPC server
+	// Root context for background routines
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// --- gRPC server ---
 	grpcLis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		log.Fatalf("failed to listen on %s: %v", grpcAddr, err)
@@ -44,11 +59,28 @@ func main() {
 	grpcErr := make(chan error, 1)
 	go func() {
 		log.Printf("gRPC listening on %s", grpcAddr)
-		ready.Store(true)
+		grpcReady.Store(true)
+		updateReady()
 		grpcErr <- grpcServer.Serve(grpcLis)
 	}()
 
-	// Fiber ops server (health/ready only)
+	// --- Kafka consumer ---
+	consumer, err := consumers.NewKafkaConsumer(consumers.Config{
+		Brokers: cfg.Kafka.Brokers,
+		Topic:   cfg.Kafka.Topic,
+		GroupID: cfg.Kafka.GroupID,
+	}, store, func(ok bool) {
+		kafkaReady.Store(ok)
+		updateReady()
+	})
+	if err != nil {
+		log.Fatalf("failed to create kafka consumer: %v", err)
+	}
+	defer func() { _ = consumer.Close() }()
+
+	go consumer.Run(ctx)
+
+	// --- Fiber ops server (health/ready only) ---
 	app := fiber.New()
 	health.RegisterRoutes(app, &ready)
 
@@ -58,7 +90,7 @@ func main() {
 		httpErr <- app.Listen(httpAddr)
 	}()
 
-	// shutdown handling
+	// --- shutdown handling ---
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
@@ -75,12 +107,16 @@ func main() {
 		}
 	}
 
+	// mark unready and stop background routines
 	ready.Store(false)
+	grpcReady.Store(false)
+	kafkaReady.Store(false)
+	cancel()
 
 	// stop fiber
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_ = ctx
+	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+	_ = ctxShutdown
 	if err := app.Shutdown(); err != nil {
 		log.Printf("fiber shutdown error: %v", err)
 	}
@@ -100,12 +136,4 @@ func main() {
 	}
 
 	log.Println("shutdown complete")
-}
-
-func envOr(key, fallback string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		return fallback
-	}
-	return v
 }
