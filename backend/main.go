@@ -17,6 +17,7 @@ import (
 
 	"github.com/create-go-app/fiber-go-template/app/analytics"
 	grpcapi "github.com/create-go-app/fiber-go-template/app/grpc"
+	"github.com/create-go-app/fiber-go-template/pkg/health"
 	analyticsv1 "github.com/create-go-app/fiber-go-template/proto/analytics/v1"
 )
 
@@ -49,16 +50,7 @@ func main() {
 
 	// Fiber ops server (health/ready only)
 	app := fiber.New()
-
-	app.Get("/healthz", func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	})
-	app.Get("/readyz", func(c *fiber.Ctx) error {
-		if ready.Load() {
-			return c.SendStatus(fiber.StatusOK)
-		}
-		return c.SendStatus(fiber.StatusServiceUnavailable)
-	})
+	health.RegisterRoutes(app, &ready)
 
 	httpErr := make(chan error, 1)
 	go func() {
