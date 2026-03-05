@@ -94,18 +94,6 @@ func (s *Store) IngestSessionEnded(userID string, categoryID string, durationSec
 	return nil
 }
 
-type CategoryShare struct {
-	CategoryID   string
-	Share        float64
-	TotalSeconds int64
-}
-
-type GeneralStats struct {
-	AvgOverallSeconds float64
-	AvgLast10Seconds  float64
-	CategoryShares    []CategoryShare
-}
-
 // GetGeneralStats returns:
 // - average length overall
 // - average length last 10 (or fewer if <10 sessions exist)
@@ -155,13 +143,6 @@ func (s *Store) GetGeneralStats(userID string) GeneralStats {
 		AvgLast10Seconds:  avgLast10,
 		CategoryShares:    shares,
 	}
-}
-
-type AvgByCategory struct {
-	CategoryID string
-	AvgSeconds float64
-	Count      int64
-	SumSeconds int64
 }
 
 // GetAverageLengthByCategory returns average duration for given category.
