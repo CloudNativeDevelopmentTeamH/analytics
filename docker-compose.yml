@@ -1,0 +1,93 @@
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v25.1.2
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
+      - --pandaproxy-addr
+      - 0.0.0.0:8082
+      - --advertise-pandaproxy-addr
+      - redpanda:8082
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: analytics
+      POSTGRES_USER: analytics
+      POSTGRES_PASSWORD: analytics
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analytics -d analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  db-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/platform/migrations:/migrations:ro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        psql postgresql://analytics:analytics@postgres:5432/analytics?sslmode=disable \
+          -v ON_ERROR_STOP=1 \
+          -f /migrations/000001_create_init_tables.up.sql
+    restart: "no"
+
+  analytics:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    environment:
+      HTTP_PORT: "8080"
+      GRPC_PORT: "9090"
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_TOPIC: focus.events
+      KAFKA_GROUP_ID: analytics-service
+      STORE_BACKEND: postgres
+      POSTGRES_DSN: postgres://analytics:analytics@postgres:5432/analytics?sslmode=disable
+      CONFIG_PATH: config/application.yml
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    restart: unless-stopped
+
+volumes:
+  redpanda-data:
+  postgres-data:
