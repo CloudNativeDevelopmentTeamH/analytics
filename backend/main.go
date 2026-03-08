@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -40,8 +41,16 @@ func main() {
 		ready.Store(grpcReady.Load() && kafkaReady.Load())
 	}
 
-	// Aggregator
-	store := analytics.NewStore()
+	// Aggregator store (in-memory or postgres)
+	store, closeStore, err := buildStore(cfg)
+	if err != nil {
+		log.Fatalf("failed to initialize store: %v", err)
+	}
+	defer func() {
+		if closeStore != nil {
+			_ = closeStore()
+		}
+	}()
 
 	// Root context for background routines
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,4 +145,19 @@ func main() {
 	}
 
 	log.Println("shutdown complete")
+}
+
+func buildStore(cfg config.Config) (analytics.StatsStore, func() error, error) {
+	switch cfg.Storage.Backend {
+	case "in-memory":
+		return analytics.NewStore(), nil, nil
+	case "postgres":
+		pgStore, err := analytics.NewPostgresStore(cfg.Storage.Postgres.DSN)
+		if err != nil {
+			return nil, nil, err
+		}
+		return pgStore, pgStore.Close, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported storage backend: %s", cfg.Storage.Backend)
+	}
 }
