@@ -23,6 +23,9 @@ func Load() Config {
 	k.Set("kafka.topic", "focus.events")
 	k.Set("kafka.group_id", "analytics-service")
 
+	k.Set("storage.backend", "in-memory")
+	k.Set("storage.postgres.dsn", "postgres://analytics:analytics@localhost:5432/analytics?sslmode=disable")
+
 	// --- YAML ---
 	cfgPath := os.Getenv("CONFIG_PATH")
 	if cfgPath == "" {
@@ -91,6 +94,14 @@ func applyEnvOverrides(k *koanf.Koanf) {
 	if v := os.Getenv("KAFKA_GROUP_ID"); v != "" {
 		k.Set("kafka.group_id", v)
 	}
+
+	if v := os.Getenv("STORE_BACKEND"); v != "" {
+		k.Set("storage.backend", v)
+	}
+
+	if v := os.Getenv("POSTGRES_DSN"); v != "" {
+		k.Set("storage.postgres.dsn", v)
+	}
 }
 
 func validate(cfg Config) {
@@ -113,5 +124,13 @@ func validate(cfg Config) {
 
 	if cfg.Kafka.GroupID == "" {
 		log.Fatalf("kafka group_id must not be empty")
+	}
+
+	if cfg.Storage.Backend == "" {
+		log.Fatalf("storage backend must not be empty")
+	}
+
+	if cfg.Storage.Backend == "postgres" && cfg.Storage.Postgres.DSN == "" {
+		log.Fatalf("storage postgres dsn must not be empty when backend=postgres")
 	}
 }
