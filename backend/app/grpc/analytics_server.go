@@ -13,10 +13,10 @@ import (
 // AnalyticsServer implements analytics.v1.AnalyticsService.
 type AnalyticsServer struct {
 	analyticsv1.UnimplementedAnalyticsServiceServer
-	store *analytics.Store
+	store analytics.StatsStore
 }
 
-func NewAnalyticsServer(store *analytics.Store) *AnalyticsServer {
+func NewAnalyticsServer(store analytics.StatsStore) *AnalyticsServer {
 	return &AnalyticsServer{store: store}
 }
 
