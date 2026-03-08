@@ -38,7 +38,7 @@ type FocusSessionEnded struct {
 // Consumer consumes focus events and updates the in-memory analytics store.
 type Consumer struct {
 	reader *kafka.Reader
-	store  *analytics.Store
+	store  analytics.StatsStore
 
 	// ready becomes true once we successfully connected & started consuming.
 	// You can wire this to /readyz in main.go.
@@ -58,7 +58,7 @@ type Config struct {
 	MaxWait time.Duration
 }
 
-func NewKafkaConsumer(cfg Config, store *analytics.Store, readyFn func(bool)) (*Consumer, error) {
+func NewKafkaConsumer(cfg Config, store analytics.StatsStore, readyFn func(bool)) (*Consumer, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, errors.New("kafka brokers must not be empty")
 	}
