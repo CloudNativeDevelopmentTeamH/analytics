@@ -1,4 +1,4 @@
-CREATE TABLE analytics_sessions (
+CREATE TABLE IF NOT EXISTS analytics_sessions (
     id BIGSERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
     category_id TEXT NOT NULL,
@@ -6,8 +6,8 @@ CREATE TABLE analytics_sessions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_analytics_sessions_user_id_created_at
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_user_id_created_at
     ON analytics_sessions (user_id, id DESC);
 
-CREATE INDEX idx_analytics_sessions_user_id_category_id
+CREATE INDEX IF NOT EXISTS idx_analytics_sessions_user_id_category_id
     ON analytics_sessions (user_id, category_id);
