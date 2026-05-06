@@ -74,8 +74,8 @@ push-image-ecr:
     - aws ecr describe-repositories --repository-names "$IMAGE_NAME" --region "$AWS_REGION" || aws ecr create-repository --repository-name "$IMAGE_NAME" --region "$AWS_REGION"
     - ECR_PASSWORD="$(aws ecr get-login-password --region "$AWS_REGION")"
   script:
-    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "AWS:$ECR_PASSWORD" "docker://$HARBOR_IMAGE:$APP_VERSION" "docker://$ECR_IMAGE:$APP_VERSION"
-    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "AWS:$ECR_PASSWORD" "docker://$HARBOR_IMAGE:latest" "docker://$ECR_IMAGE:latest"
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "$GHCR_USERNAME:$GHCR_TOKEN" "docker://$HARBOR_IMAGE:$APP_VERSION" "docker://$GHCR_IMAGE:$APP_VERSION"
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "$GHCR_USERNAME:$GHCR_TOKEN" "docker://$HARBOR_IMAGE:latest" "docker://$GHCR_IMAGE:latest"
   when: manual
 
 deploy-ansible-prod:
