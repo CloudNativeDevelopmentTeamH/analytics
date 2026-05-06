@@ -25,12 +25,12 @@ stages:
     ECR_IMAGE: $ECR_REGISTRY/$IMAGE_NAME
 
 set-app-version:
-  stage: app-version
+  stage: 🔖 app-version
   extends: .app_version
   image: alpine:latest
 
 build-image:
-  stage: build
+  stage: 🏗️ build
   extends: .image_names
   needs:
     - set-app-version
@@ -47,7 +47,7 @@ build-image:
     - docker push "$HARBOR_IMAGE:latest"
 
 push-image-ghcr:
-  stage: build
+  stage: 🏗️ build
   extends: .image_names
   needs:
     - set-app-version
@@ -61,7 +61,7 @@ push-image-ghcr:
   when: manual
 
 push-image-ecr:
-  stage: build
+  stage: 🏗️ build
   extends: .image_names
   needs:
     - set-app-version
@@ -74,12 +74,12 @@ push-image-ecr:
     - aws ecr describe-repositories --repository-names "$IMAGE_NAME" --region "$AWS_REGION" || aws ecr create-repository --repository-name "$IMAGE_NAME" --region "$AWS_REGION"
     - ECR_PASSWORD="$(aws ecr get-login-password --region "$AWS_REGION")"
   script:
-    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "$GHCR_USERNAME:$GHCR_TOKEN" "docker://$HARBOR_IMAGE:$APP_VERSION" "docker://$GHCR_IMAGE:$APP_VERSION"
-    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "$GHCR_USERNAME:$GHCR_TOKEN" "docker://$HARBOR_IMAGE:latest" "docker://$GHCR_IMAGE:latest"
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "AWS:$ECR_PASSWORD" "docker://$HARBOR_IMAGE:$APP_VERSION" "docker://$ECR_IMAGE:$APP_VERSION"
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "AWS:$ECR_PASSWORD" "docker://$HARBOR_IMAGE:latest" "docker://$ECR_IMAGE:latest"
   when: manual
 
 deploy-ansible-prod:
-  stage: deploy
+  stage: 🚀 deploy
   needs:
     - build-image
   image: alpine:latest
@@ -96,7 +96,7 @@ deploy-ansible-prod:
   when: manual
 
 deploy-helm-prod:
-  stage: deploy
+  stage: 🚀 deploy
   extends: .image_names
   needs:
     - set-app-version
