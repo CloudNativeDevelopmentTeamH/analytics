@@ -1,0 +1,119 @@
+stages:
+  - 🔖 app-version
+  - 🏗️ build
+  - 🚀 deploy
+
+.app_version:
+  script:
+    - APP_VERSION="1.${CI_COMMIT_SHORT_SHA}"
+    - echo "APP_VERSION=$APP_VERSION" > app_version.env
+    - echo "$APP_VERSION" > app_version
+  artifacts:
+    reports:
+      dotenv: app_version.env
+    paths:
+      - app_version
+  dependencies: []
+
+.image_names:
+  variables:
+    IMAGE_NAMESPACE: focusboard
+    IMAGE_REPO: analytics
+    IMAGE_NAME: ${IMAGE_NAMESPACE}/${IMAGE_REPO}
+    HARBOR_IMAGE: $HARBOR_IMAGE_PREFIX/$IMAGE_NAME
+    GHCR_IMAGE: $GHCR_IMAGE_PREFIX/$IMAGE_NAME
+    ECR_IMAGE: $ECR_REGISTRY/$IMAGE_NAME
+
+set-app-version:
+  stage: app-version
+  extends: .app_version
+  image: alpine:latest
+
+build-image:
+  stage: build
+  extends: .image_names
+  needs:
+    - set-app-version
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - echo "$HARBOR_ROBOT_TOKEN" | docker login "$HARBOR_URL" -u "$HARBOR_ROBOT_NAME" --password-stdin
+  script:
+    - docker build -f backend/Dockerfile -t "$HARBOR_IMAGE:$APP_VERSION" -t "$HARBOR_IMAGE:latest" backend
+    - docker push "$HARBOR_IMAGE:$APP_VERSION"
+    - docker push "$HARBOR_IMAGE:latest"
+
+push-image-ghcr:
+  stage: build
+  extends: .image_names
+  needs:
+    - set-app-version
+    - build-image
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache skopeo
+  script:
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "USERNAME:${GHCR_PAT}" "docker://$HARBOR_IMAGE:$APP_VERSION" "docker://$GHCR_IMAGE:$APP_VERSION"
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "USERNAME:${GHCR_PAT}" "docker://$HARBOR_IMAGE:latest" "docker://$GHCR_IMAGE:latest"
+  when: manual
+
+push-image-ecr:
+  stage: build
+  extends: .image_names
+  needs:
+    - set-app-version
+    - build-image
+  image: alpine:latest
+  variables:
+    AWS_REGION: eu-central-1
+  before_script:
+    - apk add --no-cache skopeo aws-cli
+    - aws ecr describe-repositories --repository-names "$IMAGE_NAME" --region "$AWS_REGION" || aws ecr create-repository --repository-name "$IMAGE_NAME" --region "$AWS_REGION"
+    - ECR_PASSWORD="$(aws ecr get-login-password --region "$AWS_REGION")"
+  script:
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "AWS:$ECR_PASSWORD" "docker://$HARBOR_IMAGE:$APP_VERSION" "docker://$ECR_IMAGE:$APP_VERSION"
+    - skopeo copy --src-creds "$HARBOR_ROBOT_NAME:$HARBOR_ROBOT_TOKEN" --dest-creds "AWS:$ECR_PASSWORD" "docker://$HARBOR_IMAGE:latest" "docker://$ECR_IMAGE:latest"
+  when: manual
+
+deploy-ansible-prod:
+  stage: deploy
+  needs:
+    - build-image
+  image: alpine:latest
+  variables:
+    ANSIBLE_HOST_KEY_CHECKING: "False"
+  before_script:
+    - apk add --no-cache ansible openssh-client rsync
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$ANSIBLE_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+  script:
+    - ansible-playbook -i hosts.ini playbook.yml
+  when: manual
+
+deploy-helm-prod:
+  stage: deploy
+  extends: .image_names
+  needs:
+    - set-app-version
+    - push-image-ecr
+  image:
+    name: alpine/helm:4.0.5
+    entrypoint: [""]
+  variables:
+    AWS_REGION: eu-central-1
+    EKS_CLUSTER_NAME: cnd-prod-eks
+    HELM_CHART_PATH: ./helm
+    HELM_RELEASE_NAME: analytics
+    HELM_NAMESPACE: analytics
+    HELM_EXTRA_ARGS: ""
+  before_script:
+    - apk add --no-cache aws-cli
+    - aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+  script:
+    - helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" -n "$HELM_NAMESPACE" --create-namespace --set image.repository="$ECR_IMAGE" --set image.tag="$APP_VERSION" $HELM_EXTRA_ARGS
+  when: manual
