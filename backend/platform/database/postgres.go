@@ -8,6 +8,7 @@ import (
 
 	"github.com/CloudNativeDevelopmentTeamH/analytics/backend/pkg/utils"
 
+	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
@@ -26,6 +27,15 @@ func PostgreSQLConnection() (*sqlx.DB, error) {
 	postgresConnURL, err := utils.ConnectionURLBuilder("postgres")
 	if err != nil {
 		return nil, err
+	}
+
+	// Run DB migrations from ./platform/migrations prior to opening pooled connection
+	m, err := migrate.New("file://./platform/migrations", postgresConnURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create migrator: %w", err)
+	}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return nil, fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
 	// Define database connection for PostgreSQL.

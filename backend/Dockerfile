@@ -21,6 +21,8 @@ FROM scratch
 # Copy binary and runtime config into scratch image.
 COPY --from=builder ["/build/apiserver", "/apiserver"]
 COPY --from=builder /build/config /config
+# Include migrations in the final image so the runtime can run them
+COPY --from=builder /build/platform/migrations /platform/migrations
 
 EXPOSE 8080 9090
 
