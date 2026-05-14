@@ -4,7 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jmoiron/sqlx"
 )
@@ -17,6 +21,17 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	if dsn == "" {
 		return nil, errors.New("dsn must not be empty")
 	}
+	// Try to apply DB migrations shipped in the image under /platform/migrations.
+	// This is best-effort but returns an error if migrations fail seriously.
+	log.Printf("running migrations from /platform/migrations against %s", dsn)
+	m, err := migrate.New("file:///platform/migrations", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create migrator: %w", err)
+	}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return nil, fmt.Errorf("failed to apply migrations: %w", err)
+	}
+	log.Printf("migrations applied or already up-to-date")
 
 	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
