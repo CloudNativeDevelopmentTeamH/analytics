@@ -30,7 +30,7 @@ func PostgreSQLConnection() (*sqlx.DB, error) {
 	}
 
 	// Run DB migrations from ./platform/migrations prior to opening pooled connection
-	m, err := migrate.New("file://./platform/migrations", postgresConnURL)
+	m, err := migrate.New("file:///platform/migrations", postgresConnURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create migrator: %w", err)
 	}
